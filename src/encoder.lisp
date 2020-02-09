@@ -5,6 +5,17 @@
 
 (in-package :json)
 
+(defparameter *num-indent-spaces* 4)
+(defparameter *cur-indent* 0)
+(defun increase-indent ()
+  (incf *cur-indent* *num-indent-spaces*))
+(defun decrease-indent ()
+  (if (> *cur-indent* *num-indent-spaces*)
+    (decf *cur-indent* *num-indent-spaces*)
+    (setf *cur-indent* 0)))
+(defun write-new-indented-line (stream)
+  (format stream "~%~{~a~}" (make-list *cur-indent* :initial-element #\ )))
+
 (defvar *json-output* (make-synonym-stream '*standard-output*)
   "The default output stream for encoding operations.")
 
@@ -98,7 +109,8 @@ afterwards NIL.")
              *json-aggregate-context*))
   (prog1 *json-aggregate-first*
     (unless *json-aggregate-first*
-      (write-char #\, stream))
+      (write-char #\, stream)
+      (write-new-line stream))
     (setq *json-aggregate-first* nil)))
 
 (defmacro with-aggregate ((context begin-char end-char
@@ -110,7 +122,11 @@ and END-CHAR."
          (*json-aggregate-first* t))
      (declare (special *json-aggregate-context* *json-aggregate-first*))
      (write-char ,begin-char ,stream)
+     (increase-indent)
+     (write-new-indented-line)
      (unwind-protect (progn ,@body)
+       (decrease-indent)
+       (write-new-indented-line)
        (write-char ,end-char ,stream))))
 
 (defmacro with-array ((&optional (stream '*json-output*)) &body body)
@@ -166,6 +182,7 @@ colon, and separated by comma from any preceding or following Member."
            (progn (write-string key ,stream) nil)
            (encode-json key ,stream)))
      (write-char #\: ,stream)
+     (write-char #\  stream)
      ,@body))
 
 (defun encode-object-member (key value
